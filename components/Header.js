@@ -42,7 +42,7 @@ const Header = () => {
           <Image src={dexterityLogo} alt='dexterity' height={80} width={80} />
           <p style={{ marginLeft: '10px', fontSize: '2.0rem', color: 'black', fontWeight: '900' }} className={`${style.navItem} ${
                 selectedNav === 'pool'
-              }`}>Dexterity</p>
+              }`}>Yifei</p>
         </div>      
       </div>
       <div>
