@@ -1,175 +1,77 @@
-import React, { useEffect, useState } from 'react'
-import { contractABI, contractAddress } from '../lib/constants'
-import { ethers } from 'ethers'
-import { client } from '../lib/sanityClient'
-import { useRouter } from 'next/router'
+import React, { useEffect, useState } from 'react';
+import { ethers } from 'ethers';
+import { useRouter } from 'next/router';
+import { client } from '../lib/sanityClient';
+import Transactions from '../lib/Transactions.json';  // 确保路径正确
 
-export const TransactionContext = React.createContext()
+export const TransactionContext = React.createContext();
 
-let eth
+let eth;
 
 if (typeof window !== 'undefined') {
-  eth = window.ethereum
+  eth = window.ethereum;
 }
 
 const getEthereumContract = () => {
-  const provider = new ethers.providers.Web3Provider(ethereum)
-  const signer = provider.getSigner()
+  const provider = new ethers.providers.Web3Provider(eth);
+  const signer = provider.getSigner();
+  // 使用 Uniswap V2 Router02 的地址和 ABI
   const transactionContract = new ethers.Contract(
-    contractAddress,
-    contractABI,
+    "0x4A7b5Da61326A6379179b40d00F57E5bbDC962c2",  // 使用正确的合约地址
+    Transactions.abi,
     signer,
-  )
+  );
 
-  return transactionContract
-}
+  return transactionContract;
+};
 
 export const TransactionProvider = ({ children }) => {
-  const [currentAccount, setCurrentAccount] = useState()
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const [currentAccount, setCurrentAccount] = useState();
+  const router = useRouter();
   const [formData, setFormData] = useState({
     addressTo: '',
     amount: '',
-  })
+    path: [],  // 确保 path 数组中包含了正确的代币地址
+    deadline: Math.floor(Date.now() / 1000) + 60 * 20,  // 设置合理的 deadline
+  });
 
   useEffect(() => {
-    if (isLoading) {
-      router.push(`/?loading=${currentAccount}`)
-    } else {
-      router.push(`/`)
-    }
-  }, [isLoading])
-
-  useEffect(() => {
-    if (!currentAccount) return
-    ;(async () => {
+    if (!currentAccount) return;
+    (async () => {
       const userDoc = {
         _type: 'users',
         _id: currentAccount,
         userName: 'Unnamed',
         address: currentAccount,
-      }
+      };
 
-      await client.createIfNotExists(userDoc)
-    })()
-  }, [currentAccount])
+      await client.createIfNotExists(userDoc);
+    })();
+  }, [currentAccount]);
 
   const handleChange = (e, name) => {
-    setFormData(prevState => ({ ...prevState, [name]: e.target.value }))
-  }
+    setFormData(prevState => ({ ...prevState, [name]: e.target.value }));
+  };
 
-  const checkIfWalletIsConnected = async (metamask = eth) => {
-    try {
-      if (!metamask) return alert('Please install metamask ')
+  const checkIfWalletIsConnected = async () => {
+    if (!eth) return alert('Please install MetaMask.');
 
-      const accounts = await metamask.request({ method: 'eth_accounts' })
+    const accounts = await eth.request({ method: 'eth_accounts' });
 
-      if (accounts.length) {
-        setCurrentAccount(accounts[0])
-      }
-    } catch (error) {
-      console.error(error)
-      throw new Error('No ethereum object.')
+    if (accounts.length) {
+      setCurrentAccount(accounts[0]);
     }
-  }
+  };
 
-  const connectWallet = async (metamask = eth) => {
-    try {
-      if (!metamask) return alert('Please install metamask ')
-
-      const accounts = await metamask.request({ method: 'eth_requestAccounts' })
-
-      setCurrentAccount(accounts[0])
-    } catch (error) {
-      console.error(error)
-      throw new Error('No ethereum object.')
-    }
-  }
-
-  const saveTransaction = async (
-    txHash,
-    amount,
-    fromAddress = currentAccount,
-    toAddress,
-  ) => {
-    const txDoc = {
-      _type: 'transactions',
-      _id: txHash,
-      fromAddress: fromAddress,
-      toAddress: toAddress,
-      timestamp: new Date(Date.now()).toISOString(),
-      txHash: txHash,
-      amount: parseFloat(amount),
-    }
-
-    await client.createIfNotExists(txDoc)
-
-    await client
-      .patch(currentAccount)
-      .setIfMissing({ transactions: [] })
-      .insert('after', 'transactions[-1]', [
-        {
-          _key: txHash,
-          _ref: txHash,
-          _type: 'reference',
-        },
-      ])
-      .commit()
-
-    return
-  }
-
-  const sendTransaction = async (
-    metamask = eth,
-    connectedAccount = currentAccount,
-  ) => {
-    try {
-      if (!metamask) return alert('Please install metamask ')
-      const { addressTo, amount } = formData
-      const transactionContract = getEthereumContract()
-
-      const parsedAmount = ethers.utils.parseEther(amount)
-
-      await metamask.request({
-        method: 'eth_sendTransaction',
-        params: [
-          {
-            from: connectedAccount,
-            to: addressTo,
-            gas: '0x7EF40', // 520000 Gwei
-            value: parsedAmount._hex,
-          },
-        ],
-      })
-
-      const transactionHash = await transactionContract.publishTransaction(
-        addressTo,
-        parsedAmount,
-        `Transferring ETH ${parsedAmount} to ${addressTo}`,
-        'TRANSFER',
-      )
-
-      setIsLoading(true)
-
-      await transactionHash.wait()
-
-      await saveTransaction(
-        transactionHash.hash,
-        amount,
-        connectedAccount,
-        addressTo,
-      )
-
-      setIsLoading(false)
-    } catch (error) {
-      console.log(error)
-    }
-  }
+  const swapTokens = async () => {
+    const { addressTo, amount, path, deadline } = formData;
+    const transactionContract = getE
+    return amountOut;
+  };
 
   useEffect(() => {
-    checkIfWalletIsConnected()
-  }, [])
+    checkIfWalletIsConnected();
+  }, []);
 
   return (
     <TransactionContext.Provider
@@ -179,11 +81,10 @@ export const TransactionProvider = ({ children }) => {
         formData,
         setFormData,
         handleChange,
-        sendTransaction,
-        isLoading,
+        swapTokens,  // 提供给组件调用的新函数
       }}
     >
       {children}
     </TransactionContext.Provider>
-  )
-}
+  );
+};
